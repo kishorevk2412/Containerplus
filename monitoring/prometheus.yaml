@@ -1,0 +1,95 @@
+# ContainerPulse Prometheus Monitoring Configuration & Alert Rules
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+rule_files:
+  - "alert_rules.yml"
+
+scrape_configs:
+  - job_name: 'containerpulse-app'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['containerpulse-service:5000']
+    kubernetes_sd_configs:
+      - role: pod
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+        action: keep
+        regex: true
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+        action: replace
+        target_label: __metrics_path__
+        regex: (.+)
+      - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+        action: replace
+        regex: ([^:]+)(?::\d+)?;(\d+)
+        replacement: $1:$2
+        target_label: __address__
+      - action: labelmap
+        regex: __meta_kubernetes_pod_label_(.+)
+
+---
+# Prometheus Alerting Rules Definition
+groups:
+  - name: containerpulse_alerts
+    rules:
+      # Alert 1: CPU usage > 80%
+      - alert: HighCpuUsage
+        expr: containerpulse_cpu_usage_percent > 80
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High CPU usage detected on {{ $labels.instance }}"
+          description: "CPU usage is above 80% (Current value: {{ $value }}%)"
+
+      # Alert 2: Memory usage > 80%
+      - alert: HighMemoryUsage
+        expr: containerpulse_memory_usage_bytes > 200000000
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Memory usage on {{ $labels.instance }}"
+          description: "Memory usage has exceeded threshold (Current value: {{ $value }} bytes)"
+
+      # Alert 3: Pod Failure / Unhealthy
+      - alert: PodFailure
+        expr: kube_pod_status_ready{condition="true"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Pod failure detected: {{ $labels.pod }}"
+          description: "Kubernetes Pod {{ $labels.pod }} is not ready."
+
+      # Alert 4: Excessive Pod Restarts
+      - alert: ExcessivePodRestarts
+        expr: increase(kube_pod_container_status_restarts_total[5m]) > 2
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Excessive Pod Restarts detected for {{ $labels.pod }}"
+          description: "Pod {{ $labels.pod }} has restarted more than 2 times in 5 minutes."
+
+      # Alert 5: HTTP 500 Errors
+      - alert: HighHttp500Errors
+        expr: rate(containerpulse_http_500_errors_total[1m]) > 0
+        for: 10s
+        labels:
+          severity: critical
+        annotations:
+          summary: "HTTP 500 Server Errors generated"
+          description: "HTTP 500 error rate is currently {{ $value }} errors/sec."
+
+      # Alert 6: Application Health Failure
+      - alert: ApplicationHealthFailure
+        expr: containerpulse_app_health_status == 0
+        for: 15s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Application Health Check Failed"
+          description: "ContainerPulse app reporting unhealthy status on {{ $labels.instance }}"

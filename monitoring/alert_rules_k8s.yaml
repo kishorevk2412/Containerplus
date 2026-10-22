@@ -1,0 +1,65 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: containerpulse-alert-rules
+  namespace: monitoring
+  labels:
+    app: containerpulse
+    release: prometheus
+spec:
+  groups:
+  - name: containerpulse.rules
+    rules:
+    - alert: HighCpuUsage
+      expr: containerpulse_cpu_usage_percent > 80
+      for: 30s
+      labels:
+        severity: critical
+      annotations:
+        summary: "High CPU usage detected on ContainerPulse (instance {{ $labels.instance }})"
+        description: "CPU usage is above 80% (Current value: {{ $value }}%)"
+
+    - alert: HighMemoryUsage
+      expr: containerpulse_memory_usage_bytes > 200000000
+      for: 30s
+      labels:
+        severity: warning
+      annotations:
+        summary: "High Memory usage on ContainerPulse (instance {{ $labels.instance }})"
+        description: "Memory usage has exceeded 200MB threshold (Current: {{ $value }} bytes)"
+
+    - alert: PodFailure
+      expr: kube_pod_status_ready{condition="true", pod=~"containerpulse.*"} == 0
+      for: 15s
+      labels:
+        severity: critical
+      annotations:
+        summary: "Pod failure detected: {{ $labels.pod }}"
+        description: "Kubernetes Pod {{ $labels.pod }} is not ready."
+
+    - alert: ExcessivePodRestarts
+      expr: increase(kube_pod_container_status_restarts_total{pod=~"containerpulse.*"}[5m]) > 2
+      for: 1m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Excessive Pod Restarts detected for {{ $labels.pod }}"
+        description: "Pod {{ $labels.pod }} has restarted more than 2 times in 5 minutes."
+
+    - alert: HighHttp500Errors
+      expr: rate(containerpulse_http_500_errors_total[1m]) > 0
+      for: 10s
+      labels:
+        severity: critical
+      annotations:
+        summary: "HTTP 500 Server Errors generated"
+        description: "HTTP 500 error rate is currently {{ $value }} errors/sec."
+
+    - alert: ApplicationHealthFailure
+      expr: containerpulse_app_health_status == 0
+      for: 15s
+      labels:
+        severity: critical
+      annotations:
+        summary: "Application Health Check Failed"
+        description: "ContainerPulse app reporting unhealthy status on {{ $labels.instance }}"

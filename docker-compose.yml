@@ -1,0 +1,49 @@
+services:
+  # ContainerPulse Flask Application Container
+  containerpulse-app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: containerpulse-app
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      - ENVIRONMENT=Production
+      - APP_VERSION=1.0.0
+      - PORT=5000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - containerpulse-net
+
+  # Prometheus Metrics Collector Container
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: containerpulse-prometheus
+    restart: always
+    volumes:
+      - ./monitoring/prometheus.yaml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - containerpulse-net
+
+  # Grafana Visualization Dashboard Container
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: containerpulse-grafana
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    networks:
+      - containerpulse-net
+
+networks:
+  containerpulse-net:
+    driver: bridge

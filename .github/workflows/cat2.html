@@ -1,0 +1,31 @@
+<html>
+<head>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet"></script>
+</head>
+<body>
+<h2>Image Classification</h2>
+
+<input type="file" id="file" accept="image/*">
+<img id="img" width="200">
+<button onclick="predict()">Predict</button>
+<p id="result"></p>
+
+<script>
+let model;
+
+mobilenet.load().then(m => model = m);
+
+file.onchange = e => {
+    img.src = URL.createObjectURL(e.target.files[0]);
+};
+
+async function predict() {
+    let p = await model.classify(img);
+    result.innerHTML = "Class: " + p[0].className +
+        "<br>Confidence: " +
+        (p[0].probability * 100).toFixed(2) + "%";
+}
+</script>
+</body>
+</html>
